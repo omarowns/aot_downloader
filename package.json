@@ -1,12 +1,12 @@
 {
-  "name": "alcoves",
+  "name": "aot_downloader",
   "version": "1.0.0",
-  "description": "fake album cover scraper",
+  "description": "Downloads all the manga images from readshingekinokyojin.com",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "author": "",
+  "author": "Omar Garcia <isc.omargarcia@gmail.com>",
   "license": "ISC",
   "dependencies": {
     "image-downloader": "^3.3.0",
