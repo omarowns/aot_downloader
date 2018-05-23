@@ -1,58 +1,68 @@
-const path = require('path');
-const puppeteer = require('puppeteer');
-const download = require('image-downloader');
+const fs = require('fs');
 
-// Relative path to directory to download images
-const IMAGE_DIRECTORY = '../../../Pictures/covers';
+const downloader = require('./downloader');
+const scraper = require('./scraper');
 
-const scrapeImgUrls = async () => {
-  console.log('🚀  Launching...');
-  // Launches puppeteer and goes to URL
-  const browser = await puppeteer.launch();
-  const page = await browser.newPage();
+const chapters = require('./chapters.json');
+const config = require('./config.json');
 
-  console.log('🌎  Visiting web page...');
-  await page.goto('https://old.reddit.com/r/fakealbumcovers/');
+const IMAGE_DIRECTORY = `${config.rootPath}${config.mangaPath}`;
+const URL = config.url;
 
-  console.log('⛏  Scraping image URLs...');
-  const results = await page.evaluate(() => {
-    // Grabs all <divs> of images
-    const elements = document
-          .querySelectorAll('.content > .spacer > #siteTable > .thing');
-    /* 
-     * Spreads elements into an array to filter, then creates a new array of
-     * only the URLs
-     * You can customize this to add another filter below the first if 
-     * looking for more specific criteria -- refer to blog post
-    */
-    return [...elements]
-           .filter(el => el.dataset.url.search(/(.jpg)|(.png)/) >= 0)
-           .map(el => el.dataset.url)
+const createAotDir = async () => {
+  return new Promise((resolve, reject) => {
+    fs.access(config.rootPath, fs.constants.F_OK | fs.constants.W_OK, err => {
+      if (err) { reject(err); }
+      fs.access(IMAGE_DIRECTORY, fs.constants.F_OK, err => {
+        if (err) {
+          fs.mkdir(IMAGE_DIRECTORY, 0o777, err => {
+            if (err) { reject(err); }
+            resolve();
+          });
+        }
+        resolve();
+      });
+    });
   });
-  browser.close();
-  return results;
 }
 
-const downloadImg = async (options = {}) => {
+const createChapterDir = async (dir) => {
+  return new Promise((resolve, reject) => {
+    fs.access(dir, fs.constants.F_OK | fs.constants.W_OK, err => {
+      if (err) {
+        fs.mkdir(dir, 0o777, err => {
+          if (err) { reject(err); };
+          resolve();
+        });
+      }
+      resolve();
+    });
+  });
+}
+
+const main = async () => {
   try {
-    const { filename, image } = await download.image(options);
-    console.log('⬇️  ', path.basename(filename)); // => image.jpg
-  }
-  catch (e) {
+    await createAotDir();
+    for (let index in chapters['chapters']) {
+      let chapter = chapters['chapters'][index];
+      let imgs = await scraper(`${URL}-${chapter}/`);
+
+      await Promise.all(imgs.map(async (file) => {
+        const chapterDir = `${IMAGE_DIRECTORY}${chapter}`;
+        await createChapterDir(chapterDir);
+        await downloader({
+          url: file,
+          dest: chapterDir
+        });
+      }));
+      console.log(`🆗  Done with chapter \x1b[36m${chapter}\x1b[0m`);
+      console.log(`⏬  Downloaded \x1b[36m${imgs.length}\x1b[0m images!`);
+    }
+
+    console.log(`👌  Done -- downloaded all chapters`);
+  } catch (e) {
     throw e;
   }
 }
 
-const downloadAll = async () => {
-  const imgs = await scrapeImgUrls();
-
-  await Promise.all(imgs.map(async (file) => {
-    await downloadImg({
-      url: file,
-      dest: IMAGE_DIRECTORY 
-    });
-  }));
-  console.log(`👌  Done -- downloaded \x1b[36m${imgs.length}\x1b[0m album covers!`);
-}
-
-downloadAll();
+main();
